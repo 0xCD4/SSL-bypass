@@ -48,6 +48,9 @@ setTimeout(function() {
            "/data/adb/magisk_simple.apk",
            "/data/adb/magisk.img",
            "/data/adb/magisk.db",
+           "/data/adb/zygisksu",
+           "/data/adb/rezygisk",
+           "/data/adb/modules",
         ];
 
         const ROOT_PACKAGES = [
@@ -76,7 +79,11 @@ setTimeout(function() {
             "com.formyhm.hideroot",
             "me.phh.superuser",
             "eu.chainfire.supersu.pro",
-            "com.kingouser.com"
+            "com.kingouser.com",
+            "catch.me.if.you.can.",
+            "moe.shizuku.privileged.api",
+            "org.lsposed.daemon",
+            "org.lsposed.manager",
         ];
 
         const ROOT_BINARIES = new Set([
