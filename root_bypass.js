@@ -1,11 +1,34 @@
+/**
+ * Universal Android Security Bypass Suite
+ *
+ * Frida script for security testing and penetration testing of Android applications.
+ * For authorized security research and penetration testing only.
+ *
+ * Features:
+ * - SSL/Certificate Pinning Bypass (20+ libraries)
+ * - Root Detection Bypass (native & Java level)
+ * - Frida Detection Bypass
+ * - Burp Certificate Installation
+ *
+ * Optimizations:
+ * - Regex-based pattern matching for improved performance
+ * - Consolidated SSL bypass functions (removed 460+ lines of duplication)
+ * - Efficient root path/package detection
+ * - Consistent error handling and logging
+ */
+
 setTimeout(function() {
     Java.perform(function() {
-        console.log("[*] Starting SSL Bypass Suite");
+        console.log("[*] Starting SSL Bypass Suite v2.0 (Optimized)");
 
         const bypassStatus = {
             ssl: false,
             root: false,
         };
+
+        // ============================================================================
+        // CONFIGURATION: Root Detection Indicators
+        // ============================================================================
 
         const ROOT_FILES = [
            "/data/local/bin/su",
@@ -100,6 +123,10 @@ setTimeout(function() {
             "service.adb.root"
         ]);
 
+        // ============================================================================
+        // CONFIGURATION: Java Classes & Logging
+        // ============================================================================
+
         const JavaClasses = {
             SSLContext: Java.use("javax.net.ssl.SSLContext"),
             Runtime: Java.use("java.lang.Runtime"),
@@ -125,6 +152,21 @@ setTimeout(function() {
             allowedRootCommands: new Set(["getprop"]), // Whitelist certain commands
         };
 
+        // Optimized root path checking using regex
+        const ROOT_FILES_REGEX = new RegExp(ROOT_FILES.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'));
+        const ROOT_PACKAGES_REGEX = new RegExp(ROOT_PACKAGES.join('|'));
+
+        // Utility function for efficient root path detection
+        function isRootPath(path) {
+            if (!path) return false;
+            return ROOT_FILES_REGEX.test(path);
+        }
+
+        function isRootPackage(pkg) {
+            if (!pkg) return false;
+            return ROOT_PACKAGES_REGEX.test(pkg);
+        }
+
         function log(level, message, error) {
             if (level >= CURRENT_LOG_LEVEL) {
                 switch(level) {
@@ -145,6 +187,10 @@ setTimeout(function() {
             }
         }
 
+        // ============================================================================
+        // SSL/TLS CERTIFICATE PINNING BYPASS
+        // ============================================================================
+
         function setupSSLBypass() {
             console.log("[+] Setting up SSL bypass...");
             try {
@@ -153,8 +199,17 @@ setTimeout(function() {
                 bypassTrustKit();
                 bypassWebViewClient();
                 bypassCertificatePinning();
-                
+                bypassHttpsURLConnection();
+                bypassTrustManagerImpl();
+                bypassOpenSSL();
+                bypassPhoneGap();
+                bypassIBMMobileFirst();
+                bypassAppcelerator();
+                bypassAppmattus();
+                bypassBoye();
+
                 bypassStatus.ssl = true;
+                console.log("[+] SSL pinning bypass completed");
                 return true;
             } catch(e) {
                 console.log("[-] SSL Bypass failed:", e);
@@ -291,21 +346,21 @@ setTimeout(function() {
                 UnverifiedCertError.$init.implementation = function(message) {
                     try {
                         const stackTrace = Java.use("java.lang.Thread").currentThread().getStackTrace();
-                        const exceptionStack = stackTrace.findIndex(stack => 
+                        const exceptionStack = stackTrace.findIndex(stack =>
                             stack.getClassName() === "javax.net.ssl.SSLPeerUnverifiedException"
                         );
-                        
+
                         if (exceptionStack >= 0) {
                             const callingStack = stackTrace[exceptionStack + 1];
                             const className = callingStack.getClassName();
                             const methodName = callingStack.getMethodName();
-                            
+
                             return this.$init("SSL verification bypassed");
                         }
                     } catch(e) {
                         console.log("[-] Stack trace analysis failed:", e);
                     }
-                    
+
                     return this.$init(message);
                 };
             } catch(e) {
@@ -313,7 +368,227 @@ setTimeout(function() {
             }
         }
 
-        // *** NEW FUNCTION ADDED TO FIX ROOT BYPASS FAILURE ***
+        function bypassHttpsURLConnection() {
+            try {
+                const HttpsURLConnection = Java.use("javax.net.ssl.HttpsURLConnection");
+
+                HttpsURLConnection.setSSLSocketFactory.implementation = function(SSLSocketFactory) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing HttpsURLConnection.setSSLSocketFactory");
+                    return;
+                };
+
+                HttpsURLConnection.setHostnameVerifier.implementation = function(hostnameVerifier) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing HttpsURLConnection.setHostnameVerifier");
+                    return;
+                };
+
+                HttpsURLConnection.setDefaultHostnameVerifier.implementation = function(hostnameVerifier) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing HttpsURLConnection.setDefaultHostnameVerifier");
+                    return;
+                };
+
+                console.log("[+] HttpsURLConnection bypass");
+            } catch(e) {
+                console.log("[ ] HttpsURLConnection bypass not applicable");
+            }
+        }
+
+        function bypassTrustManagerImpl() {
+            try {
+                const ArrayList = Java.use("java.util.ArrayList");
+                const TrustManagerImpl = Java.use("com.android.org.conscrypt.TrustManagerImpl");
+
+                TrustManagerImpl.checkTrustedRecursive.implementation = function(a1, a2, a3, a4, a5, a6) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing TrustManagerImpl.checkTrustedRecursive");
+                    return ArrayList.$new();
+                };
+
+                TrustManagerImpl.verifyChain.implementation = function(untrustedChain, trustAnchorChain, host, clientAuth, ocspData, tlsSctData) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing TrustManagerImpl.verifyChain: ${host}`);
+                    return untrustedChain;
+                };
+
+                console.log("[+] TrustManagerImpl (Android 7+) bypass");
+            } catch(e) {
+                console.log("[ ] TrustManagerImpl bypass not applicable");
+            }
+        }
+
+        function bypassOpenSSL() {
+            let bypassCount = 0;
+
+            // OpenSSLSocketImpl Conscrypt
+            try {
+                const OpenSSLSocketImpl = Java.use("com.android.org.conscrypt.OpenSSLSocketImpl");
+                OpenSSLSocketImpl.verifyCertificateChain.implementation = function(certRefs, JavaObject, authMethod) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing OpenSSLSocketImpl Conscrypt");
+                };
+                bypassCount++;
+            } catch(e) {}
+
+            // OpenSSLEngineSocketImpl Conscrypt
+            try {
+                const OpenSSLEngineSocketImpl = Java.use("com.android.org.conscrypt.OpenSSLEngineSocketImpl");
+                OpenSSLEngineSocketImpl.verifyCertificateChain.overload("[Ljava.lang.Long;", "java.lang.String").implementation = function(a, b) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing OpenSSLEngineSocketImpl: ${b}`);
+                };
+                bypassCount++;
+            } catch(e) {}
+
+            // OpenSSLSocketImpl Apache Harmony
+            try {
+                const OpenSSLSocketImplHarmony = Java.use("org.apache.harmony.xnet.provider.jsse.OpenSSLSocketImpl");
+                OpenSSLSocketImplHarmony.verifyCertificateChain.implementation = function(asn1DerEncodedCertificateChain, authMethod) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing OpenSSLSocketImpl Apache Harmony");
+                };
+                bypassCount++;
+            } catch(e) {}
+
+            if (bypassCount > 0) {
+                console.log(`[+] OpenSSL bypasses (${bypassCount} variants)`);
+            } else {
+                console.log("[ ] OpenSSL bypasses not applicable");
+            }
+        }
+
+        function bypassPhoneGap() {
+            try {
+                const PhoneGapSSL = Java.use("nl.xservices.plugins.sslCertificateChecker");
+                PhoneGapSSL.execute.overload("java.lang.String", "org.json.JSONArray", "org.apache.cordova.CallbackContext").implementation = function(a, b, c) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing PhoneGap sslCertificateChecker: ${a}`);
+                    return true;
+                };
+                console.log("[+] PhoneGap sslCertificateChecker bypass");
+            } catch(e) {
+                console.log("[ ] PhoneGap bypass not applicable");
+            }
+
+            // Apache Cordova WebViewClient
+            try {
+                const CordovaWebViewClient = Java.use("org.apache.cordova.CordovaWebViewClient");
+                CordovaWebViewClient.onReceivedSslError.overload("android.webkit.WebView", "android.webkit.SslErrorHandler", "android.net.http.SslError").implementation = function(obj1, obj2, obj3) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing Apache Cordova WebViewClient");
+                    obj2.proceed();
+                };
+                console.log("[+] Apache Cordova WebViewClient bypass");
+            } catch(e) {
+                console.log("[ ] Apache Cordova bypass not applicable");
+            }
+        }
+
+        function bypassIBMMobileFirst() {
+            let bypassCount = 0;
+
+            // IBM MobileFirst pinTrustedCertificatePublicKey
+            try {
+                const WLClient = Java.use("com.worklight.wlclient.api.WLClient");
+
+                WLClient.getInstance().pinTrustedCertificatePublicKey.overload("java.lang.String").implementation = function(cert) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM MobileFirst (string): ${cert}`);
+                    return;
+                };
+
+                WLClient.getInstance().pinTrustedCertificatePublicKey.overload("[Ljava.lang.String;").implementation = function(cert) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM MobileFirst (array): ${cert}`);
+                    return;
+                };
+                bypassCount += 2;
+            } catch(e) {}
+
+            // IBM WorkLight HostNameVerifierWithCertificatePinning
+            try {
+                const HostNameVerifier = Java.use("com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning");
+
+                HostNameVerifier.verify.overload("java.lang.String", "javax.net.ssl.SSLSocket").implementation = function(a, b) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM WorkLight (SSLSocket): ${a}`);
+                    return;
+                };
+
+                HostNameVerifier.verify.overload("java.lang.String", "java.security.cert.X509Certificate").implementation = function(a, b) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM WorkLight (cert): ${a}`);
+                    return;
+                };
+
+                HostNameVerifier.verify.overload("java.lang.String", "[Ljava.lang.String;", "[Ljava.lang.String;").implementation = function(a, b, c) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM WorkLight (strings): ${a}`);
+                    return;
+                };
+
+                HostNameVerifier.verify.overload("java.lang.String", "javax.net.ssl.SSLSession").implementation = function(a, b) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing IBM WorkLight (SSLSession): ${a}`);
+                    return true;
+                };
+                bypassCount += 4;
+            } catch(e) {}
+
+            if (bypassCount > 0) {
+                console.log(`[+] IBM MobileFirst/WorkLight bypasses (${bypassCount} variants)`);
+            } else {
+                console.log("[ ] IBM MobileFirst/WorkLight not applicable");
+            }
+        }
+
+        function bypassAppcelerator() {
+            try {
+                const AppceleratorPinning = Java.use("appcelerator.https.PinningTrustManager");
+                AppceleratorPinning.checkServerTrusted.implementation = function() {
+                    log(LOG_LEVEL.DEBUG, "Bypassing Appcelerator PinningTrustManager");
+                };
+                console.log("[+] Appcelerator bypass");
+            } catch(e) {
+                console.log("[ ] Appcelerator bypass not applicable");
+            }
+        }
+
+        function bypassAppmattus() {
+            let bypassCount = 0;
+
+            try {
+                const CertTransInterceptor = Java.use("com.appmattus.certificatetransparency.internal.verifier.CertificateTransparencyInterceptor");
+                CertTransInterceptor.intercept.implementation = function(a) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing Appmattus CertificateTransparencyInterceptor");
+                    return a.proceed(a.request());
+                };
+                bypassCount++;
+            } catch(e) {}
+
+            try {
+                const CertTransTrustManager = Java.use("com.appmattus.certificatetransparency.internal.verifier.CertificateTransparencyTrustManager");
+
+                CertTransTrustManager.checkServerTrusted.overload("[Ljava.security.cert.X509Certificate;", "java.lang.String").implementation = function(certs, str) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing Appmattus TrustManager (2 args)");
+                };
+
+                CertTransTrustManager.checkServerTrusted.overload("[Ljava.security.cert.X509Certificate;", "java.lang.String", "java.lang.String").implementation = function(certs, str, str2) {
+                    log(LOG_LEVEL.DEBUG, "Bypassing Appmattus TrustManager (3 args)");
+                    return Java.use("java.util.ArrayList").$new();
+                };
+                bypassCount += 2;
+            } catch(e) {}
+
+            if (bypassCount > 0) {
+                console.log(`[+] Appmattus bypasses (${bypassCount} variants)`);
+            } else {
+                console.log("[ ] Appmattus not applicable");
+            }
+        }
+
+        function bypassBoye() {
+            try {
+                const BoyeVerifier = Java.use("ch.boye.httpclientandroidlib.conn.ssl.AbstractVerifier");
+                BoyeVerifier.verify.implementation = function(host, ssl) {
+                    log(LOG_LEVEL.DEBUG, `Bypassing Boye AbstractVerifier: ${host}`);
+                };
+                console.log("[+] Boye AbstractVerifier bypass");
+            } catch(e) {
+                console.log("[ ] Boye bypass not applicable");
+            }
+        }
+
+        // ============================================================================
+        // ROOT DETECTION BYPASS
+        // ============================================================================
+
         function bypassBuildProps() {
             try {
                 const Build = Java.use("android.os.Build");
@@ -395,7 +670,8 @@ setTimeout(function() {
                             this.filePath = args[0].readUtf8String();
                         },
                         onLeave(retval) {
-                            if (retval.toInt32() !== 0 && ROOT_FILES.some(path => this.filePath.includes(path))) {
+                            if (retval.toInt32() !== 0 && isRootPath(this.filePath)) {
+                                log(LOG_LEVEL.DEBUG, `Blocked fopen: ${this.filePath}`);
                                 retval.replace(ptr(0x0));
                             }
                         }
@@ -409,7 +685,8 @@ setTimeout(function() {
                             this.filePath = args[0].readUtf8String();
                         },
                         onLeave(retval) {
-                            if (retval.toInt32() === 0 && ROOT_FILES.some(path => this.filePath.includes(path))) {
+                            if (retval.toInt32() === 0 && isRootPath(this.filePath)) {
+                                log(LOG_LEVEL.DEBUG, `Blocked access: ${this.filePath}`);
                                 retval.replace(ptr(-1));
                             }
                         }
@@ -443,11 +720,13 @@ setTimeout(function() {
                 const UnixFileSystem = Java.use("java.io.UnixFileSystem");
                 UnixFileSystem.checkAccess.implementation = function(file, access) {
                     const filename = file.getAbsolutePath();
-                    if (ROOT_FILES.some(path => filename.includes(path))) {
+                    if (isRootPath(filename)) {
+                        log(LOG_LEVEL.DEBUG, `Blocked file access: ${filename}`);
                         return false;
                     }
                     return this.checkAccess(file, access);
                 };
+                console.log("[+] UnixFileSystem bypass");
             } catch (e) {
                 console.log("[-] UnixFileSystem hook failed:", e);
             }
@@ -459,22 +738,26 @@ setTimeout(function() {
                 ProcessImpl.start.implementation = function(cmdarray, env, dir, redirects, redirectErrorStream) {
                     const cmd = cmdarray[0].toString();
                     const arg = cmdarray.length > 1 ? cmdarray[1].toString() : "";
-                    
-                    // Add package check
+
+                    // Block package manager checks for root packages
                     if (cmd === "pm" && arg === "list" && cmdarray.length > 2) {
-                        if (ROOT_PACKAGES.some(pkg => cmdarray[2].toString().includes(pkg))) {
+                        if (isRootPackage(cmdarray[2].toString())) {
+                            log(LOG_LEVEL.DEBUG, `Blocked pm list: ${cmdarray[2].toString()}`);
                             cmdarray[0] = Java.use("java.lang.String").$new("");
                         }
                     }
-                    
-                    if ((cmd === "mount") || 
+
+                    // Block sensitive commands
+                    if ((cmd === "mount") ||
                         (cmd === "getprop" && SENSITIVE_PROPS.has(arg)) ||
                         (cmd.includes("which") && arg === "su")) {
+                        log(LOG_LEVEL.DEBUG, `Blocked command: ${cmd} ${arg}`);
                         cmdarray[0] = Java.use("java.lang.String").$new("");
                     }
-                    
+
                     return this.start.call(this, cmdarray, env, dir, redirects, redirectErrorStream);
                 };
+                console.log("[+] ProcessImpl.start bypass");
             } catch (e) {
                 console.log("[-] Shell command hook failed:", e);
             }
@@ -483,14 +766,15 @@ setTimeout(function() {
         function bypassRuntimeExec() {
             try {
                 const Runtime = Java.use("java.lang.Runtime");
-                
+
+                // Optimized command blocking with regex
+                const BLOCKED_CMD_PATTERNS = /getprop|mount|build\.prop|id|sh|su|which/i;
+
                 function shouldBlockCommand(cmd) {
-                    cmd = cmd.toLowerCase();
-                    return ROOT_BINARIES.has(cmd) || 
-                           ROOT_PACKAGES.some(pkg => cmd.includes(pkg.toLowerCase())) ||
-                           ["getprop", "mount", "build.prop", "id", "sh", "su", "which"].some(
-                               blocked => cmd.includes(blocked)
-                           );
+                    const cmdLower = cmd.toLowerCase();
+                    return ROOT_BINARIES.has(cmdLower) ||
+                           isRootPackage(cmdLower) ||
+                           BLOCKED_CMD_PATTERNS.test(cmd);
                 }
 
                 const execOverloads = [
@@ -503,18 +787,24 @@ setTimeout(function() {
                 ];
 
                 execOverloads.forEach(overload => {
-                    Runtime.exec.overload(...overload).implementation = function() {
-                        let cmd = arguments[0];
-                        if (Array.isArray(cmd)) {
-                            cmd = cmd[0];
-                        }
-                        
-                        if (shouldBlockCommand(cmd.toString())) {
-                            return this.exec.call(this, "echo");
-                        }
-                        return this.exec.apply(this, arguments);
-                    };
+                    try {
+                        Runtime.exec.overload(...overload).implementation = function() {
+                            let cmd = arguments[0];
+                            if (Array.isArray(cmd)) {
+                                cmd = cmd[0];
+                            }
+
+                            if (shouldBlockCommand(cmd.toString())) {
+                                log(LOG_LEVEL.DEBUG, `Blocked Runtime.exec: ${cmd}`);
+                                return this.exec.call(this, "echo");
+                            }
+                            return this.exec.apply(this, arguments);
+                        };
+                    } catch(e) {
+                        // Overload may not exist in this Android version
+                    }
                 });
+                console.log("[+] Runtime.exec bypasses");
             } catch(e) {
                 console.log("[-] Runtime.exec hooks failed:", e);
             }
@@ -554,17 +844,15 @@ setTimeout(function() {
 
         function bypassProcessBuilder() {
             try {
-                const blockedCommands = new Set(["getprop", "mount", "build.prop", "id", "su"]);
-                
+                const BLOCKED_CMDS = /getprop|mount|build\.prop|id|su/i;
+
                 JavaClasses.ProcessBuilder.start.implementation = function() {
                     const cmd = this.command.call(this);
-                    
-                    const hasBlockedCmd = Array.from(cmd).some(c => 
-                        blockedCommands.has(c.toString()) || 
-                        Array.from(blockedCommands).some(blocked => c.toString().includes(blocked))
-                    );
+
+                    const hasBlockedCmd = Array.from(cmd).some(c => BLOCKED_CMDS.test(c.toString()));
 
                     if (hasBlockedCmd) {
+                        log(LOG_LEVEL.DEBUG, `Blocked ProcessBuilder: ${Array.from(cmd).join(' ')}`);
                         this.command.call(this, ["echo"]);
                         return this.start.call(this);
                     }
@@ -572,17 +860,19 @@ setTimeout(function() {
                     return this.start.call(this);
                 };
 
+                console.log("[+] ProcessBuilder bypass");
+
+                // Check for ProcessManager (older Android versions)
                 Java.perform(function() {
                     try {
                         if (Java.available) {
                             const loadedClasses = Java.enumerateLoadedClassesSync();
                             if (loadedClasses.includes("java.lang.ProcessManager")) {
-                                const ProcessManager = Java.use("java.lang.ProcessManager");
                                 bypassProcessManager();
                             }
                         }
                     } catch(e) {
-                        console.log("[-] ProcessManager not available");
+                        log(LOG_LEVEL.DEBUG, "ProcessManager not available");
                     }
                 });
 
@@ -647,6 +937,10 @@ setTimeout(function() {
                 }
             });
         }
+
+        // ============================================================================
+        // BURP SUITE CERTIFICATE INTERCEPTOR
+        // ============================================================================
 
         function setupBurpInterceptor() {
             console.log("");
@@ -768,6 +1062,10 @@ setTimeout(function() {
                 return false;
             }
         }
+
+        // ============================================================================
+        // FRIDA DETECTION BYPASS
+        // ============================================================================
 
         function hookFrida() {
             try {
@@ -919,6 +1217,10 @@ setTimeout(function() {
             }
         }
 
+        // ============================================================================
+        // MAIN SETUP & EXECUTION
+        // ============================================================================
+
         function setupBypass() {
             try {
                 const results = {
@@ -956,473 +1258,6 @@ setTimeout(function() {
         } catch(err) {
             console.error("[!] Critical Error:", err.stack || err);
         }
-
-        // Continue HttpsURLConnection bypasses
-        try {
-            const HttpsURLConnection = Java.use("javax.net.ssl.HttpsURLConnection");
-            HttpsURLConnection.setSSLSocketFactory.implementation = function(
-                SSLSocketFactory
-            ) {
-                console.log("  --> Bypassing HttpsURLConnection (setSSLSocketFactory)");
-                return;
-            };
-            console.log("[+] HttpsURLConnection (setSSLSocketFactory)");
-        } catch (err) {
-            console.log("[ ] HttpsURLConnection (setSSLSocketFactory)");
-        }
-
-        try {
-            const HttpsURLConnection = Java.use("javax.net.ssl.HttpsURLConnection");
-            HttpsURLConnection.setHostnameVerifier.implementation = function(
-                hostnameVerifier
-            ) {
-                console.log("  --> Bypassing HttpsURLConnection (setHostnameVerifier)");
-                return;
-            };
-            console.log("[+] HttpsURLConnection (setHostnameVerifier)");
-        } catch (err) {
-            console.log("[ ] HttpsURLConnection (setHostnameVerifier)");
-        }
-
-        // SSLContext bypass
-        try {
-            const X509TrustManager = Java.use("javax.net.ssl.X509TrustManager");
-            const SSLContext = Java.use("javax.net.ssl.SSLContext");
-
-            const TrustManager = Java.registerClass({
-                name: "dev.asd.test.TrustManager",
-                implements: [X509TrustManager],
-                methods: {
-                    checkClientTrusted: function(chain, authType) {},
-                    checkServerTrusted: function(chain, authType) {},
-                    getAcceptedIssuers: function() {
-                        return [];
-                    },
-                },
-            });
-
-            const TrustManagers = [TrustManager.$new()];
-            const SSLContext_init = SSLContext.init.overload(
-                "[Ljavax.net.ssl.KeyManager;",
-                "[Ljavax.net.ssl.TrustManager;",
-                "java.security.SecureRandom"
-            );
-
-            SSLContext_init.implementation = function(
-                keyManager,
-                trustManager,
-                secureRandom
-            ) {
-                console.log("  --> Bypassing Trustmanager (Android < 7) request");
-                SSLContext_init.call(this, keyManager, TrustManagers, secureRandom);
-            };
-            console.log("[+] SSLContext");
-        } catch (err) {
-            console.log("[ ] SSLContext");
-        }
-
-        // TrustManagerImpl (Android > 7)
-        try {
-            const array_list = Java.use("java.util.ArrayList");
-            const TrustManagerImpl = Java.use(
-                "com.android.org.conscrypt.TrustManagerImpl"
-            );
-
-            TrustManagerImpl.checkTrustedRecursive.implementation = function(
-                a1, a2, a3, a4, a5, a6
-            ) {
-                console.log("  --> Bypassing TrustManagerImpl checkTrusted ");
-                return array_list.$new();
-            };
-
-            TrustManagerImpl.verifyChain.implementation = function(
-                untrustedChain,
-                trustAnchorChain,
-                host,
-                clientAuth,
-                ocspData,
-                tlsSctData
-            ) {
-                console.log("  --> Bypassing TrustManagerImpl verifyChain: " + host);
-                return untrustedChain;
-            };
-            console.log("[+] TrustManagerImpl");
-        } catch (err) {
-            console.log("[ ] TrustManagerImpl");
-        }
-
-        // OkHTTPv3 bypasses
-        try {
-            const okhttp3_Activity_1 = Java.use("okhttp3.CertificatePinner");
-            okhttp3_Activity_1.check.overload(
-                "java.lang.String",
-                "java.util.List"
-            ).implementation = function(a, b) {
-                console.log("  --> Bypassing OkHTTPv3 (list): " + a);
-                return;
-            };
-            console.log("[+] OkHTTPv3 (list)");
-        } catch (err) {
-            console.log("[ ] OkHTTPv3 (list)");
-        }
-
-        // Trustkit bypasses
-        try {
-            // Bypass Trustkit {1}
-            const trustkit_Activity_1 = Java.use(
-                "com.datatheorem.android.trustkit.pinning.OkHostnameVerifier"
-            );
-            trustkit_Activity_1.verify.overload(
-                "java.lang.String",
-                "javax.net.ssl.SSLSession"
-            ).implementation = function(a, b) {
-                console.log(
-                    "  --> Bypassing Trustkit OkHostnameVerifier(SSLSession): " + a
-                );
-                return true;
-            };
-            console.log("[+] Trustkit OkHostnameVerifier(SSLSession)");
-        } catch (err) {
-            console.log("[ ] Trustkit OkHostnameVerifier(SSLSession)");
-        }
-
-        try {
-            // Bypass Trustkit {2}
-            const trustkit_Activity_2 = Java.use(
-                "com.datatheorem.android.trustkit.pinning.OkHostnameVerifier"
-            );
-            trustkit_Activity_2.verify.overload(
-                "java.lang.String",
-                "java.security.cert.X509Certificate"
-            ).implementation = function(a, b) {
-                console.log("  --> Bypassing Trustkit OkHostnameVerifier(cert): " + a);
-                return true;
-            };
-            console.log("[+] Trustkit OkHostnameVerifier(cert)");
-        } catch (err) {
-            console.log("[ ] Trustkit OkHostnameVerifier(cert)");
-        }
-
-        try {
-            // Bypass Trustkit {3}
-            const trustkit_PinningTrustManager = Java.use(
-                "com.datatheorem.android.trustkit.pinning.PinningTrustManager"
-            );
-            trustkit_PinningTrustManager.checkServerTrusted.implementation =
-                function() {
-                    console.log("  --> Bypassing Trustkit PinningTrustManager");
-                };
-            console.log("[+] Trustkit PinningTrustManager");
-        } catch (err) {
-            console.log("[ ] Trustkit PinningTrustManager");
-        }
-
-        // Appcelerator Titanium
-        try {
-            const appcelerator_PinningTrustManager = Java.use(
-                "appcelerator.https.PinningTrustManager"
-            );
-            appcelerator_PinningTrustManager.checkServerTrusted.implementation =
-                function() {
-                    console.log("  --> Bypassing Appcelerator PinningTrustManager");
-                };
-            console.log("[+] Appcelerator PinningTrustManager");
-        } catch (err) {
-            console.log("[ ] Appcelerator PinningTrustManager");
-        }
-
-        // OpenSSLSocketImpl Conscrypt
-        try {
-            const OpenSSLSocketImpl = Java.use(
-                "com.android.org.conscrypt.OpenSSLSocketImpl"
-            );
-            OpenSSLSocketImpl.verifyCertificateChain.implementation = function(
-                certRefs,
-                JavaObject,
-                authMethod
-            ) {
-                console.log("  --> Bypassing OpenSSLSocketImpl Conscrypt");
-            };
-            console.log("[+] OpenSSLSocketImpl Conscrypt");
-        } catch (err) {
-            console.log("[ ] OpenSSLSocketImpl Conscrypt");
-        }
-
-        // OpenSSLEngineSocketImpl Conscrypt
-        try {
-            const OpenSSLEngineSocketImpl_Activity = Java.use(
-                "com.android.org.conscrypt.OpenSSLEngineSocketImpl"
-            );
-            OpenSSLEngineSocketImpl_Activity.verifyCertificateChain.overload(
-                "[Ljava.lang.Long;",
-                "java.lang.String"
-            ).implementation = function(a, b) {
-                console.log("  --> Bypassing OpenSSLEngineSocketImpl Conscrypt: " + b);
-            };
-            console.log("[+] OpenSSLEngineSocketImpl Conscrypt");
-        } catch (err) {
-            console.log("[ ] OpenSSLEngineSocketImpl Conscrypt");
-        }
-
-        // OpenSSLSocketImpl Apache Harmony
-        try {
-            const OpenSSLSocketImpl_Harmony = Java.use(
-                "org.apache.harmony.xnet.provider.jsse.OpenSSLSocketImpl"
-            );
-            OpenSSLSocketImpl_Harmony.verifyCertificateChain.implementation =
-                function(asn1DerEncodedCertificateChain, authMethod) {
-                    console.log("  --> Bypassing OpenSSLSocketImpl Apache Harmony");
-                };
-            console.log("[+] OpenSSLSocketImpl Apache Harmony");
-        } catch (err) {
-            console.log("[ ] OpenSSLSocketImpl Apache Harmony");
-        }
-
-        // PhoneGap sslCertificateChecker
-        try {
-            const phonegap_Activity = Java.use(
-                "nl.xservices.plugins.sslCertificateChecker"
-            );
-            phonegap_Activity.execute.overload(
-                "java.lang.String",
-                "org.json.JSONArray",
-                "org.apache.cordova.CallbackContext"
-            ).implementation = function(a, b, c) {
-                console.log("  --> Bypassing PhoneGap sslCertificateChecker: " + a);
-                return true;
-            };
-            console.log("[+] PhoneGap sslCertificateChecker");
-        } catch (err) {
-            console.log("[ ] PhoneGap sslCertificateChecker");
-        }
-
-        // IBM MobileFirst pinTrustedCertificatePublicKey (double bypass)
-        try {
-            // Bypass IBM MobileFirst {1}
-            const WLClient_Activity_1 = Java.use(
-                "com.worklight.wlclient.api.WLClient"
-            );
-            WLClient_Activity_1.getInstance().pinTrustedCertificatePublicKey.overload(
-                "java.lang.String"
-            ).implementation = function(cert) {
-                console.log(
-                    "  --> Bypassing IBM MobileFirst pinTrustedCertificatePublicKey (string): " +
-                    cert
-                );
-                return;
-            };
-            console.log("[+] IBM MobileFirst pinTrustedCertificatePublicKey (string)");
-        } catch (err) {
-            console.log("[ ] IBM MobileFirst pinTrustedCertificatePublicKey (string)");
-        }
-
-        try {
-            // Bypass IBM MobileFirst {2}
-            const WLClient_Activity_2 = Java.use(
-                "com.worklight.wlclient.api.WLClient"
-            );
-            WLClient_Activity_2.getInstance().pinTrustedCertificatePublicKey.overload(
-                "[Ljava.lang.String;"
-            ).implementation = function(cert) {
-                console.log(
-                    "  --> Bypassing IBM MobileFirst pinTrustedCertificatePublicKey (string array): " +
-                    cert
-                );
-                return;
-            };
-            console.log("[+] IBM MobileFirst pinTrustedCertificatePublicKey (string array)");
-        } catch (err) {
-            console.log("[ ] IBM MobileFirst pinTrustedCertificatePublicKey (string array)");
-        }
-
-        // IBM WorkLight (ancestor of MobileFirst) HostNameVerifierWithCertificatePinning
-        try {
-            // Bypass IBM WorkLight {1}
-            const worklight_Activity_1 = Java.use(
-                "com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning"
-            );
-            worklight_Activity_1.verify.overload(
-                "java.lang.String",
-                "javax.net.ssl.SSLSocket"
-            ).implementation = function(a, b) {
-                console.log(
-                    "  --> Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSocket): " +
-                    a
-                );
-                return;
-            };
-            console.log("[+] IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSocket)");
-        } catch (err) {
-            console.log("[ ] IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSocket)");
-        }
-
-        try {
-            // Bypass IBM WorkLight {2}
-            const worklight_Activity_2 = Java.use(
-                "com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning"
-            );
-            worklight_Activity_2.verify.overload(
-                "java.lang.String",
-                "java.security.cert.X509Certificate"
-            ).implementation = function(a, b) {
-                console.log(
-                    "  --> Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning (cert): " +
-                    a
-                );
-                return;
-            };
-            console.log("[+] IBM WorkLight HostNameVerifierWithCertificatePinning (cert)");
-        } catch (err) {
-            console.log("[ ] IBM WorkLight HostNameVerifierWithCertificatePinning (cert)");
-        }
-
-        try {
-            // Bypass IBM WorkLight {3}
-            const worklight_Activity_3 = Java.use(
-                "com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning"
-            );
-            worklight_Activity_3.verify.overload(
-                "java.lang.String",
-                "[Ljava.lang.String;",
-                "[Ljava.lang.String;"
-            ).implementation = function(a, b) {
-                console.log(
-                    "  --> Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning (string string): " +
-                    a
-                );
-                return;
-            };
-            console.log("[+] IBM WorkLight HostNameVerifierWithCertificatePinning (string string)");
-        } catch (err) {
-            console.log("[ ] IBM WorkLight HostNameVerifierWithCertificatePinning (string string)");
-        }
-
-        try {
-            // Bypass IBM WorkLight {4}
-            const worklight_Activity_4 = Java.use(
-                "com.worklight.wlclient.certificatepinning.HostNameVerifierWithCertificatePinning"
-            );
-            worklight_Activity_4.verify.overload(
-                "java.lang.String",
-                "javax.net.ssl.SSLSession"
-            ).implementation = function(a, b) {
-                console.log(
-                    "  --> Bypassing IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSession): " +
-                    a
-                );
-                return true;
-            };
-            console.log("[+] IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSession)");
-        } catch (err) {
-            console.log("[ ] IBM WorkLight HostNameVerifierWithCertificatePinning (SSLSession)");
-        }
-
-        // Android WebViewClient (double bypass)
-        try {
-            // Bypass WebViewClient {1} (deprecated from Android 6)
-            const AndroidWebViewClient_Activity_1 = Java.use(
-                "android.webkit.WebViewClient"
-            );
-            AndroidWebViewClient_Activity_1.onReceivedSslError.overload(
-                "android.webkit.WebView",
-                "android.webkit.SslErrorHandler",
-                "android.net.http.SslError"
-            ).implementation = function(obj1, obj2, obj3) {
-                console.log("  --> Bypassing Android WebViewClient (SslErrorHandler)");
-                obj2.proceed();
-            };
-            console.log("[+] Android WebViewClient (SslErrorHandler)");
-        } catch (err) {
-            console.log("[ ] Android WebViewClient (SslErrorHandler)");
-        }
-
-        try {
-            // Bypass WebViewClient {2}
-            const AndroidWebViewClient_Activity_2 = Java.use(
-                "android.webkit.WebViewClient"
-            );
-            AndroidWebViewClient_Activity_2.onReceivedError.overload(
-                "android.webkit.WebView",
-                "android.webkit.WebResourceRequest",
-                "android.webkit.WebResourceError"
-            ).implementation = function(obj1, obj2, obj3) {
-                console.log("  --> Bypassing Android WebViewClient (WebResourceError)");
-            };
-            console.log("[+] Android WebViewClient (WebResourceError)");
-        } catch (err) {
-            console.log("[ ] Android WebViewClient (WebResourceError)");
-        }
-
-        // Apache Cordova WebViewClient
-        try {
-            const CordovaWebViewClient_Activity = Java.use(
-                "org.apache.cordova.CordovaWebViewClient"
-            );
-            CordovaWebViewClient_Activity.onReceivedSslError.overload(
-                "android.webkit.WebView",
-                "android.webkit.SslErrorHandler",
-                "android.net.http.SslError"
-            ).implementation = function(obj1, obj2, obj3) {
-                console.log("  --> Bypassing Apache Cordova WebViewClient");
-                obj3.proceed();
-            };
-            console.log("[+] Apache Cordova WebViewClient");
-        } catch (err) {
-            console.log("[ ] Apache Cordova WebViewClient");
-        }
-
-        // Boye AbstractVerifier
-        try {
-            const boye_AbstractVerifier = Java.use(
-                "ch.boye.httpclientandroidlib.conn.ssl.AbstractVerifier"
-            );
-            boye_AbstractVerifier.verify.implementation = function(host, ssl) {
-                console.log("  --> Bypassing Boye AbstractVerifier: " + host);
-            };
-            console.log("[+] Boye AbstractVerifier");
-        } catch (err) {
-            console.log("[ ] Boye AbstractVerifier");
-        }
-
-        // Appmattus
-        try {
-            const appmatus_Activity = Java.use(
-                "com.appmattus.certificatetransparency.internal.verifier.CertificateTransparencyInterceptor"
-            );
-            appmatus_Activity["intercept"].implementation = function(a) {
-                console.log("  --> Bypassing Appmattus (Transparency)");
-                return a.proceed(a.request());
-            };
-            console.log("[+] Appmattus (CertificateTransparencyInterceptor)");
-        } catch (err) {
-            console.log("[ ] Appmattus (CertificateTransparencyInterceptor)");
-        }
-
-        try {
-            const CertificateTransparencyTrustManager = Java.use(
-                "com.appmattus.certificatetransparency.internal.verifier.CertificateTransparencyTrustManager"
-            );
-            CertificateTransparencyTrustManager["checkServerTrusted"].overload(
-                "[Ljava.security.cert.X509Certificate;",
-                "java.lang.String"
-            ).implementation = function(x509CertificateArr, str) {
-                console.log("  --> Bypassing Appmattus (CertificateTransparencyTrustManager)");
-            };
-            CertificateTransparencyTrustManager["checkServerTrusted"].overload(
-                "[Ljava.security.cert.X509Certificate;",
-                "java.lang.String",
-                "java.lang.String"
-            ).implementation = function(x509CertificateArr, str, str2) {
-                console.log("  --> Bypassing Appmattus (CertificateTransparencyTrustManager)");
-                return Java.use("java.util.ArrayList").$new();
-            };
-            console.log("[+] Appmattus (CertificateTransparencyTrustManager)");
-        } catch (err) {
-            console.log("[ ] Appmattus (CertificateTransparencyTrustManager)");
-        }
-
-        console.log("[+] SSL pinning bypass completed");
-        return true;
 
     });
     
