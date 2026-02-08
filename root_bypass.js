@@ -18,6 +18,16 @@
  */
 
 setTimeout(function() {
+    if (!Java.available) {
+        console.log("[!] Java API not available — this script only supports Android.");
+        console.log("[!] You appear to be running on iOS. Use an iOS-specific SSL bypass script instead.");
+        console.log("[!] Suggested alternatives:");
+        console.log("[!]   - objection: objection -g <bundle_id> explore -> ios sslpinning disable");
+        console.log("[!]   - ssl-kill-switch2 (Cydia/Sileo tweak)");
+        console.log("[!]   - iOS Frida scripts using ObjC.classes (SecTrustEvaluate, NSURLSession hooks)");
+        return;
+    }
+
     Java.perform(function() {
         console.log("[*] Starting SSL Bypass Suite v2.0 (Optimized)");
 
