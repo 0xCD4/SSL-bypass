@@ -72,6 +72,18 @@ A universal, non-customized Frida script for bypassing security mechanisms in An
 # Load the script
 frida -U -l root_bypass.js -f com.target.application
 ```
+In some applications, we need to obtain the PID of that application, which can be done with the command:
+
+```bash
+adb shell ps | grep com.target.application
+```
+
+Then we use that in the following command:
+
+```bash
+frida -U -p <PID> -l root_bypass.js
+```
+
 
 
 ## Technical Details
