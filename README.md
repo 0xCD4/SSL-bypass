@@ -1,133 +1,73 @@
-# Universal Android Security Bypass Suite
+# Universal Android Security Bypass Suite (v3)
 
-A universal, non-customized Frida script for bypassing security mechanisms in Android applications. This script works out-of-the-box across different Android versions and applications without requiring app-specific modifications.
+A universal Frida script for bypassing common security mechanisms in Android applications during **authorized** security testing. Works out-of-the-box across Android versions and applications without app-specific modifications.
 
-> **Important:** This is a universal bypass script, not a customized solution. It's designed to work across different Android versions and applications without modifications.
+> **Note about stability:** Universal bypass scripts can still crash some apps. If the target crashes on first attempt, retry 2-3 times, restart the app, relaunch Frida, or inject with `-f` instead of attaching to a running process.
 
-> **Note about Stability:** As with any universal bypass solution, crashes may occur:
-> - Some applications may crash on first attempt - retry 2-3 times
-> - If persistent crashes occur, try:
->   - Restarting the target application
->   - Relaunching Frida
->   - Clearing app data/cache
->   - Running with `-f` flag instead of `-F`
-> - Success rate varies by application and protection mechanisms
+## Features
 
-## Core Features
+### SSL / Certificate Pinning Bypass
+- `SSLContext.init` → trust-all TrustManager (single central hook)
+- OkHttp 3.x (`CertificatePinner.check`) and OkHttp 4.x (`check$okhttp`)
+- Conscrypt `TrustManagerImpl` (`checkTrustedRecursive`, `verifyChain`) — Android 7+
+- OpenSSL/BoringSSL variants (conscrypt + Apache Harmony `verifyCertificateChain`)
+- WebView / Apache Cordova `onReceivedSslError`
+- TrustKit, PhoneGap, IBM MobileFirst/WorkLight, Appcelerator, Appmattus Certificate Transparency, Boye
+- `HttpsURLConnection` custom socket factories / hostname verifiers neutralized
 
-### Universal Compatibility
-- Works across all Android versions (5.0 - 14.0+)
-- No app-specific customization needed
-- Framework-agnostic implementation
-- Automatic detection and bypass of security features
+### Root Detection Bypass
+- `Build` property spoofing (each field individually fault-isolated)
+- `SystemProperties.get` (Java) and `__system_property_get` (native) value spoofing
+- **Real package hiding**: `PackageManager.getPackageInfo` throws `NameNotFoundException` for root-management packages (`int` and API 33+ `long` flag overloads)
+- File checks: `File.exists()` / `UnixFileSystem.checkAccess`, plus native `fopen` / `open` / `openat` / `access` blocking for known root paths
+- Command execution: `Runtime.exec`, `ProcessBuilder.start`, and `ProcessImpl.start` with **token-based** blocking (a command like `mkdir` is no longer blocked just because it contains `id`)
+- `BufferedReader` output rewriting for `test-keys` checks
+- `KeyInfo.isInsideSecureHardware` → true
 
-### Key Bypass Mechanisms
-1. **Universal Root Detection Bypass**
-   - Common root file path checks
-   - Package manager detection
-   - System property checks
-   - Runtime command execution
-   - Build property modifications
+### Frida Detection Bypass
+- `ptrace` → always returns success
+- `/proc/self/maps` and `/proc/self/status` redirection: sanitized copies (Frida/gum/Xposed lines filtered, `TracerPid` forced to 0) are written to the app cache dir and served via `open`/`openat`/`fopen` hooks
+- `strstr`: only the needle is inspected; Frida-related lookups return NULL
+- `connect()`: connections to known Frida ports (27042, 27043, 23946, 27047) fail — with correct network byte-order handling
 
-2. **Universal SSL Pinning Bypass**
-   - TrustManager implementation
-   - WebView SSL error handling
-   - OkHttp certificate pinning
-   - Universal SSL context modification
+### Burp Suite Certificate Check
+- Detects a pushed CA at common `/data/local/tmp/` locations and prints its subject (Java-level TLS is already trust-all; the pushed certificate matters for native TLS stacks)
 
-3. **Universal Memory Protection**
-   - Generic memory range protection
-   - Cross-version memory access handling
-   - Basic memory restriction bypasses
+## What changed in v3
 
-## Limitations
+The v2 script (`root_bypass.js`, removed) contained bugs that silently disabled several bypasses:
 
-### Known Limitations
-1. **Root Detection**
-   - May not bypass highly customized root detection
-   - Some app-specific root checks might still work
-   - Custom hardware attestation not bypassed
-
-2. **SSL Pinning**
-   - Custom certificate validation may require additional handling
-   - Some advanced pinning techniques might not be bypassed
-   - Network security configuration overrides may vary
-
-3. **General**
-   - No bypass for hardware-backed security features
-   - Some app-specific security measures might remain
-   - Not designed for highly sophisticated protection mechanisms
-
-### What This Script Won't Do
-- Bypass hardware-based security
-- Handle app-specific custom implementations
-- Bypass sophisticated anti-tampering
-- Override hardware attestation
-- Bypass custom security frameworks
+| v2 bug | v3 fix |
+|---|---|
+| `connect()` port check read `sin_family` from the wrong byte offset and the port in host byte order — never matched | correct 2-byte family read + big-endian port decode |
+| `/proc/self/maps` filter used a non-existent Frida `File(fd, "r").readAll()` API — threw on every call | working redirect mechanism via sanitized fake files |
+| `Runtime.exec` blocking regex (`sh`, `id`, `su` as substrings) broke legitimate app commands | token-based blocking with binary-name resolution |
+| `ProcessBuilder.command(["echo"])` passed a JS array where `List<String>` is required | proper `java.util.ArrayList` |
+| `pm list` check looked at the wrong argument index | all arguments scanned |
+| Package manager code only *queried* root packages without hiding them | `getPackageInfo` now throws `NameNotFoundException` |
+| `.implementation` assigned without `.overload()` on multi-overload methods (throws in Frida) | generic `hookAll` covering every overload |
+| `global.fridaStatus` (`ReferenceError` in Frida), duplicate `SSLContext.init` / verifier / `SystemProperties` hooks, dead `ProcessManager` branch, `enumerateLoadedClassesSync()` scans | removed / consolidated |
+| One failing hook could abort a whole section | every hook individually wrapped in `try/catch` |
 
 ## Usage
 
-### Basic Setup
 ```bash
-# Load the script
-frida -U -l root_bypass.js -f com.target.application
+# Basic usage (spawn)
+frida -U -f com.target.application -l android-bypass-v3.js
+
+# Optional: push a Burp CA for native TLS interception
+adb push cacert.der /data/local/tmp/cert-der.crt
 ```
 
+Set `VERBOSE = true` at the top of the script to log every blocked call.
 
-## Technical Details
+## Limitations
 
-### Universal Design Principles
-- Framework-agnostic hooks
-- Generic bypass implementations
-- No app-specific logic
-- Minimal dependencies
-- Cross-version compatibility
-
-### Implementation Approach
-- Uses common Android APIs
-- Implements basic security bypasses
-- Focuses on universal detection methods
-- Avoids version-specific code
-- Maintains simplicity for reliability
+- Hardware-backed attestation (Play Integrity, SafetyNet hardware) is **not** bypassed
+- Heavily obfuscated or custom native implementations may require app-specific hooks
+- Frida-server itself must be hidden (e.g., non-default name/port) for strong anti-Frida targets
+- No guarantee against sophisticated RASP frameworks
 
 ## Security Notice
 
-This universal bypass script is intended for:
-- Security research
-- Penetration testing
-- Vulnerability assessment
-
-**Important:** 
-- This is not a silver bullet
-- Some protections may remain active
-- Advanced security measures might require custom solutions
-- Always test thoroughly in your specific use case
-
-## Advantages of Universal Approach
-- Works immediately without customization
-- No need for app-specific modifications
-- Consistent behavior across apps
-- Easy to maintain and update
-- Reliable base functionality
-
-## Limitations of Universal Approach
-- Cannot handle all edge cases
-- May miss app-specific protections
-- Limited to common security measures
-- Basic protection bypass only
-- No advanced feature handling
-
-## Best Practices
-1. Use as initial bypass attempt
-2. Monitor for unhandled protections
-3. Consider supplementing with custom code if needed
-4. Test thoroughly on target application
-5. Be aware of limitations
-6. For crash handling:
-   - Always try multiple attempts
-   - Monitor logcat for specific errors
-   - Consider timing of script injection
-   - Use appropriate Frida launch flags
-
-## License & Usage
-For legitimate security research and authorized testing only. Users are responsible for compliance with applicable laws and regulations.
+For **legitimate security research and authorized penetration testing only**. Users are responsible for compliance with applicable laws and regulations. This is not a silver bullet — some protections may remain active; always verify in your specific use case.
